@@ -4,15 +4,37 @@
 
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include <Adafruit_CC3000.h>
+#include <ccspi.h>
+#include <SPI.h>
+#include <string.h>
+#include "utility/debug.h"
 
 #include "config.h"
 
 /*****
  * Values expected in config.h:
 
- * // the PIN that the 1-Wire sensor bus is connected to
+ * // the pin that the 1-Wire sensor bus is connected to
  * // multiple sensors can be connected to the same 1-Wire bus
  * #define ONE_WIRE_PIN 2
+ * 
+ * // SSID and password cannot be longer than 32 characters
+ * #define WLAN_SSID "SSID"
+ * #define WLAN_PASS "PASSWORD"
+ * // security can be WLAN_SEC_UNSEC, WLAN_SEC_WEP, WLAN_SEC_WPA or WLAN_SEC_WPA2
+ * #define WLAN_SECURITY WLAN_SEC_WPA2
+ * 
+ * // API endpoint
+ * #define API_HOST "HOST"
+ * #define API_ENDPOINT "/api"
+ * #define API_PORT 80
+ * 
+ * // components of IP address
+ * #define API_IP1 127
+ * #define API_IP2 0
+ * #define API_IP3 0
+ * #define API_IP4 1
  ****/
 
 // initialise OneWire library
@@ -21,9 +43,23 @@ OneWire oneWire(ONE_WIRE_PIN);
 // initialise temperature library
 DallasTemperature sensors(&oneWire);
 
+// IRQ must be an interrupt pin, VBAT and CS can be any pins
+#define CC3000_IRQ  3
+#define CC3000_VBAT 5
+#define CC3000_CS   10
+// hardware SPI is used for the remaning pins
+// on an UNO, SCK = 13, MISO = 12, and MOSI = 11
+// clock speed can be changed
+Adafruit_CC3000 cc3000 = Adafruit_CC3000(CC3000_CS, CC3000_IRQ, CC3000_VBAT, SPI_CLOCK_DIVIDER);
+
+// amount of time in milliseconds to wait before closing connection with no data being receieved
+#define IDLE_TIMEOUT_MS 3000
+
 byte deviceCount;
 byte deviceAddress[8];
 byte deviceIndex;
+
+uint32_t ip;
 
 // setup code, runs once
 void setup() {
@@ -38,8 +74,25 @@ void setup() {
   sensorInit();
 
   // get readings from temperature sensors
-  readSensors();
+  String message = readSensors();
 
+  Adafruit_CC3000_Client client = connect();
+
+  if (client.connected()) {
+    Serial.println(F("Connected to server"));
+    
+    send(client, message);
+  
+    client.close();
+  
+    // NB: connection must be cleaned up for the CC3000 can freak out on next connection
+    Serial.println(F("Disconnecting..."));
+    cc3000.disconnect();
+  }
+  else {
+    Serial.println(F("Connection failed"));
+  }
+  
   Serial.println();
 }
 
@@ -77,6 +130,9 @@ void sensorInit() {
 void printAddress(byte address[8]) {
   /**
    * Print the address of a device in hexadecimal format to the serial port.
+   * 
+   * Example:
+   *   { 0x28, 0xFF, 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC }
    */
    
   Serial.print(F("{ "));
@@ -95,9 +151,32 @@ void printAddress(byte address[8]) {
   Serial.print(F(" }"));
 }
 
-void readSensors() {
+String formatAddress(byte address[8]) {
+  /**
+   * Return the address of a device as a hexadecimal string.
+   * 
+   * Example:
+   *   0x28ff123456789abc
+   */
+   
+   String s = "0x";
+   for (uint8_t i = 0; i < 8; i++) {
+    // zero-pad the address if necessary
+    if (address[i] < 16) {
+      s += "0";
+    }
+    s += String(address[i], HEX);
+   }
+   return s;
+}
+
+String readSensors() {
   /**
    * Get temperature reading from each sensor.
+   * Returns the readings as a JSON string (message to be sent to API).
+   * 
+   * Example message:
+   *   { "readings": { "0x28ff123456789abc":14.44, "0x28ff123456789abd":14.38 } }
    * 
    * The address of each device is a unique 64-bit code stored in ROM (reference: DS18B20 datasheet).
    * The least significant 8-bits contains the 1-Wire family code (28h for the DS18B20).
@@ -109,18 +188,109 @@ void readSensors() {
   Serial.println(F("Requesting temperatures..."));
   sensors.requestTemperatures();
 
+  String message = "{ \"readings\": { ";
   for (deviceIndex = 0; deviceIndex < deviceCount; deviceIndex++) {
     if (sensors.getAddress(deviceAddress, deviceIndex)) {
       float temperature = sensors.getTempC(deviceAddress);
+      String address = formatAddress(deviceAddress);
       Serial.print(F("Device "));
       Serial.print(deviceIndex);
       Serial.print(F("; address: "));
       printAddress(deviceAddress);
       Serial.print(F("; temperature: "));
       Serial.println(temperature);
+      message = message + "\"" + address + "\":" + String(temperature);
+      // comma-seperate readings (unless this is the last reading)
+      if (deviceIndex < deviceCount - 1) {
+        message += ", ";
+      }
     } else {
       Serial.println(F("Unable to read from device"));
     }
-  } 
+  }
+  message += " } }";
+  Serial.println(F("Sensor data message:"));
+  Serial.println(message);
+  return message;
+}
+
+Adafruit_CC3000_Client connect() {
+  /**
+   * Connection to WiFi network and then to remote server.
+   */
+   
+  // initialise module
+  Serial.println(F("Initialising network connection..."));
+  if (!cc3000.begin())
+  {
+    Serial.println(F("Unable to initialise module"));
+    while(1);
+  }
+  
+  Serial.print(F("Attempting to connect to: ")); Serial.println(WLAN_SSID);
+  if (!cc3000.connectToAP(WLAN_SSID, WLAN_PASS, WLAN_SECURITY)) {
+    Serial.println(F("Network connection failed"));
+    while(1);
+  }
+   
+  Serial.println(F("Connected to network"));
+  
+  // block until DHCP has been completed
+  Serial.println(F("Starting DHCP..."));
+  while (!cc3000.checkDHCP())
+  {
+    // TODO: timeout for DHCP lookup?
+    delay(100);
+  }
+  Serial.println(F("DHCP complete"));
+
+  // TODO: DNS lookup
+  ip = cc3000.IP2U32(API_IP1, API_IP2, API_IP3, API_IP4);
+  
+  Serial.print(F("Connecting to IP: "));
+  cc3000.printIPdotsRev(ip);
+  Serial.println();
+  
+  // Use HTTP/1.1 to keep server from disconnecting before all data has been read
+  return cc3000.connectTCP(ip, API_PORT);
+}
+
+void send(Adafruit_CC3000_Client client, String message) {
+  /**
+   * Send message to API as a POST request.
+   */
+   
+  int contentLength = message.length();
+  Serial.println(F("Sending request..."));
+  Serial.print(F("Content-Length: "));
+  Serial.println(contentLength, DEC);
+  client.fastrprint(F("POST "));
+  client.fastrprint(API_ENDPOINT);
+  client.fastrprintln(F(" HTTP/1.1"));
+  client.fastrprint(F("Host: "));
+  client.fastrprintln(API_HOST);
+  client.fastrprintln(F("User-Agent: Arduino/1.0"));
+  client.fastrprintln(F("Content-Type: application/json"));
+  client.fastrprintln(F("Connection: close"));
+  client.fastrprint(F("Content-Length: "));
+  client.println(contentLength, DEC);
+  client.fastrprint(F("\r\n"));
+  client.println(message);
+  client.println();
+
+  Serial.println(F("-------------------------------------"));
+  
+  // read data until either the connection is closed, or the idle timeout is reached
+  unsigned long lastRead = millis();
+  while (client.connected() && (millis() - lastRead < IDLE_TIMEOUT_MS)) {
+    while (client.available()) {
+      char c = client.read();
+      Serial.print(c);
+      lastRead = millis();
+    }
+  }
+  
+  Serial.println();
+  Serial.println(F("-------------------------------------"));
 }
 
