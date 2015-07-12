@@ -74,6 +74,6 @@ The following headers are included in the request:
 
 Example of request body:
 
-    { "readings": { "0x28ff123456789abc":14.44, "0x28ff123456789abd":14.38 } }
+    {"readings":{"28ff123456789abc":14.44,"28ff123456789abd":14.38}}
 
-The unique 64-bit serial code for each device (in hexadecimal format) is mapped to the temperature reading from the device.
+The unique 64-bit serial code for each device (in hexadecimal format) is mapped to the temperature reading from the device. The "0x" hexadecimal prefix is excluded from the serial code.

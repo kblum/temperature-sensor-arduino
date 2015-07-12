@@ -163,10 +163,10 @@ String formatAddress(byte address[8]) {
    * Return the address of a device as a hexadecimal string.
    * 
    * Example:
-   *   0x28ff123456789abc
+   *   28ff123456789abc
    */
    
-   String s = "0x";
+   String s = "";
    for (uint8_t i = 0; i < 8; i++) {
     // zero-pad the address if necessary
     if (address[i] < 16) {
@@ -183,7 +183,7 @@ String readSensors() {
    * Returns the readings as a JSON string (message to be sent to API).
    * 
    * Example message:
-   *   { "readings": { "0x28ff123456789abc":14.44, "0x28ff123456789abd":14.38 } }
+   *   {"readings":{"28ff123456789abc":14.44,"28ff123456789abd":14.38}}
    * 
    * The address of each device is a unique 64-bit code stored in ROM (reference: DS18B20 datasheet).
    * The least significant 8-bits contains the 1-Wire family code (28h for the DS18B20).
@@ -195,7 +195,7 @@ String readSensors() {
   Serial.println(F("Requesting temperatures..."));
   sensors.requestTemperatures();
 
-  String message = "{ \"readings\": { ";
+  String message = "{\"readings\":{";
   for (deviceIndex = 0; deviceIndex < deviceCount; deviceIndex++) {
     if (sensors.getAddress(deviceAddress, deviceIndex)) {
       float temperature = sensors.getTempC(deviceAddress);
@@ -209,14 +209,14 @@ String readSensors() {
       message = message + "\"" + address + "\":" + String(temperature);
       // comma-seperate readings (unless this is the last reading)
       if (deviceIndex < deviceCount - 1) {
-        message += ", ";
+        message += ",";
       }
     } else {
       Serial.print(F("Unable to read from device: "));
       Serial.println(deviceIndex);
     }
   }
-  message += " } }";
+  message += "}}";
   Serial.println(F("Sensor data message:"));
   Serial.println(message);
   return message;
