@@ -41,6 +41,8 @@ Create a `config.h` file and populate with the following settings (substituting 
 #define API_HOST "HOST"
 #define API_ENDPOINT "/api"
 #define API_PORT 80
+// empty string for no auth or base64 encoded auth header value
+#define API_AUTH_VALUE ""
 
 // set to true to perform DNS lookup from API_HOST
 // false to use fixed IP address
@@ -64,6 +66,7 @@ The temperature readings are sent to a remote server through an HTTP/1.1 POST re
 The following headers are included in the request:
 
 * `Host`
+* `Authorization` - HTTP Basic authentication (if configured)
 * `User-Agent` - `Arduino/1.0`
 * `Content-Type` - `application/json`
 * `Connection` - `close`

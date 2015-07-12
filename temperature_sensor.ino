@@ -29,6 +29,8 @@
  * #define API_HOST "HOST"
  * #define API_ENDPOINT "/api"
  * #define API_PORT 80
+ * // empty string for no auth or base64 encoded auth header value
+ * #define API_AUTH_VALUE ""
  * 
  * // set to true to perform DNS lookup from API_HOST
  * // false to use fixed IP address
@@ -293,6 +295,13 @@ void send(Adafruit_CC3000_Client client, String message) {
   client.fastrprintln(F(" HTTP/1.1"));
   client.fastrprint(F("Host: "));
   client.fastrprintln(API_HOST);
+  if (API_AUTH_VALUE != "") {
+    Serial.println("Using HTTP Basic authentication");
+    client.fastrprint(F("Authorization: Basic "));
+    client.fastrprintln(API_AUTH_VALUE);
+  } else {
+    Serial.println("Not using authentication");
+  }
   client.fastrprintln(F("User-Agent: Arduino/1.0"));
   client.fastrprintln(F("Content-Type: application/json"));
   client.fastrprintln(F("Connection: close"));
