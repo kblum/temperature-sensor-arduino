@@ -212,7 +212,8 @@ String readSensors() {
         message += ", ";
       }
     } else {
-      Serial.println(F("Unable to read from device"));
+      Serial.print(F("Unable to read from device: "));
+      Serial.println(deviceIndex);
     }
   }
   message += " } }";
