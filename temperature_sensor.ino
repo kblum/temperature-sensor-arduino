@@ -5,9 +5,15 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
-// the PIN that the 1-Wire sensor bus is connected to
-// multiple sensors can be connected to the same 1-Wire bus
-#define ONE_WIRE_PIN 2
+#include "config.h"
+
+/*****
+ * Values expected in config.h:
+
+ * // the PIN that the 1-Wire sensor bus is connected to
+ * // multiple sensors can be connected to the same 1-Wire bus
+ * #define ONE_WIRE_PIN 2
+ ****/
 
 // initialise OneWire library
 OneWire oneWire(ONE_WIRE_PIN);

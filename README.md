@@ -16,3 +16,16 @@ Go to "Manage Libraries" in the Arduino IDE and install the following libraries:
 
 * [OneWire](http://www.pjrc.com/teensy/td_libs_OneWire.html) - project was developed against version 2.3.0.
 * [MAX](MAX31850_DallasTemp) - project was developed against version 1.0.0.
+
+
+## Configuration
+
+Create a `config.h` file and populate with the following settings (substituting in appropriate values):
+
+```
+// the PIN that the 1-Wire sensor bus is connected to
+// multiple sensors can be connected to the same 1-Wire bus
+#define ONE_WIRE_PIN 2
+```
+
+The configuration file is not under version control.
