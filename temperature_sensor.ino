@@ -30,7 +30,12 @@
  * #define API_ENDPOINT "/api"
  * #define API_PORT 80
  * 
- * // components of IP address
+ * // set to true to perform DNS lookup from API_HOST
+ * // false to use fixed IP address
+ * #define PERFORM_DNS_LOOKUP false
+ * 
+ * // components of fixed IP address
+ * // only required if PERFORM_DNS_LOOKUP is false
  * #define API_IP1 127
  * #define API_IP2 0
  * #define API_IP3 0
@@ -244,9 +249,28 @@ Adafruit_CC3000_Client connect() {
   }
   Serial.println(F("DHCP complete"));
 
-  // TODO: DNS lookup
-  ip = cc3000.IP2U32(API_IP1, API_IP2, API_IP3, API_IP4);
-  
+  if (PERFORM_DNS_LOOKUP) {
+    Serial.println(F("Performing DNS lookup to get server IP address..."));
+    ip = 0;
+    while (ip == 0) {
+      Serial.print(F("Attempting to resolve: "));
+      Serial.println(API_HOST);
+      int16_t dnsResult = cc3000.getHostByName(API_HOST, &ip);
+      if (dnsResult > 0) {
+        // testing indicates that a result of 1 indicates success
+        Serial.print(F("IP address resolved; result code: "));
+        Serial.println(dnsResult);
+      } else {
+        Serial.print(F("Unable to resolve; result code: "));
+        Serial.println(dnsResult);
+        delay(1000);
+      }
+    }
+  } else {
+    Serial.println(F("Not performing DNS lookup; using fixed server IP address"));
+    ip = cc3000.IP2U32(API_IP1, API_IP2, API_IP3, API_IP4);
+  }
+    
   Serial.print(F("Connecting to IP: "));
   cc3000.printIPdotsRev(ip);
   Serial.println();

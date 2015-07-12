@@ -42,7 +42,12 @@ Create a `config.h` file and populate with the following settings (substituting 
 #define API_ENDPOINT "/api"
 #define API_PORT 80
 
-// components of IP address
+// set to true to perform DNS lookup from API_HOST
+// false to use fixed IP address
+#define PERFORM_DNS_LOOKUP false
+
+// components of fixed IP address
+// only required if PERFORM_DNS_LOOKUP is false
 #define API_IP1 127
 #define API_IP2 0
 #define API_IP3 0
