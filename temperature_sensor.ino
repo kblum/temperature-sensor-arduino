@@ -25,6 +25,9 @@
  * // security can be WLAN_SEC_UNSEC, WLAN_SEC_WEP, WLAN_SEC_WPA or WLAN_SEC_WPA2
  * #define WLAN_SECURITY WLAN_SEC_WPA2
  * 
+ * // polling interval of loop in seconds
+ * #define POLLING_INTERVAL_S 120
+ * 
  * // API endpoint
  * #define API_HOST "HOST"
  * #define API_ENDPOINT "/api"
@@ -54,10 +57,6 @@ DallasTemperature sensors(&oneWire);
 #define CC3000_IRQ  3
 #define CC3000_VBAT 5
 #define CC3000_CS   10
-// hardware SPI is used for the remaning pins
-// on an UNO, SCK = 13, MISO = 12, and MOSI = 11
-// clock speed can be changed
-Adafruit_CC3000 cc3000 = Adafruit_CC3000(CC3000_CS, CC3000_IRQ, CC3000_VBAT, SPI_CLOCK_DIVIDER);
 
 // amount of time in milliseconds to wait before closing connection with no data being receieved
 #define IDLE_TIMEOUT_MS 3000
@@ -67,6 +66,10 @@ byte deviceAddress[8];
 byte deviceIndex;
 
 uint32_t ip;
+
+unsigned long interval; // polling interval in milliseconds
+unsigned long lastRunTime;
+unsigned long currentTime;
 
 // setup code, runs once
 void setup() {
@@ -80,10 +83,43 @@ void setup() {
   // initialise temperature sensors
   sensorInit();
 
+  interval = (unsigned long)POLLING_INTERVAL_S * 1000;
+  Serial.print(F("Polling interval: "));
+  Serial.print(POLLING_INTERVAL_S);
+  Serial.print(F(" seconds => "));
+  Serial.print(interval);
+  Serial.println(F(" milliseconds"));
+
+  lastRunTime = millis();
+  record();
+}
+
+// main loop, runs repeatedly
+void loop() {
+  // interval loop
+  currentTime = millis();
+  if (currentTime - lastRunTime > interval) {
+    lastRunTime = currentTime;
+    record();
+  }
+}
+
+void record() {
+  /**
+   * Get readings from temperature sensors and then send to server.
+   * Intended to run in a loop.
+   */
+  
   // get readings from temperature sensors
   String message = readSensors();
 
-  Adafruit_CC3000_Client client = connect();
+  // IRQ must be an interrupt pin, VBAT and CS can be any pins
+  // hardware SPI is used for the remaning pins
+  // on an UNO, SCK = 13, MISO = 12, and MOSI = 11
+  // clock speed can be changed
+  Adafruit_CC3000 cc3000 = Adafruit_CC3000(CC3000_CS, CC3000_IRQ, CC3000_VBAT, SPI_CLOCK_DIVIDER); 
+
+  Adafruit_CC3000_Client client = connect(cc3000);
 
   if (client.connected()) {
     Serial.println(F("Connected to server"));
@@ -100,13 +136,7 @@ void setup() {
     Serial.println(F("Connection failed"));
   }
   
-  Serial.println();
-}
-
-// main loop, runs repeatedly
-void loop() {
-  // no nothing
-  delay(1000);
+  Serial.println();  
 }
 
 void sensorInit() {
@@ -132,6 +162,8 @@ void sensorInit() {
   else {
     Serial.println(F("off"));
   }
+
+  Serial.println();
 }
 
 void printAddress(byte address[8]) {
@@ -222,7 +254,7 @@ String readSensors() {
   return message;
 }
 
-Adafruit_CC3000_Client connect() {
+Adafruit_CC3000_Client connect(Adafruit_CC3000 cc3000) {
   /**
    * Connection to WiFi network and then to remote server.
    */

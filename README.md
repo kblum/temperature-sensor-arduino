@@ -37,6 +37,9 @@ Create a `config.h` file and populate with the following settings (substituting 
 // security can be WLAN_SEC_UNSEC, WLAN_SEC_WEP, WLAN_SEC_WPA or WLAN_SEC_WPA2
 #define WLAN_SECURITY WLAN_SEC_WPA2
 
+// polling interval of loop in seconds
+#define POLLING_INTERVAL_S 120
+
 // API endpoint
 #define API_HOST "HOST"
 #define API_ENDPOINT "/api"
