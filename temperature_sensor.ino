@@ -9,6 +9,7 @@
 #include <SPI.h>
 #include <string.h>
 #include "utility/debug.h"
+#include <avr/wdt.h>
 
 #include "config.h"
 
@@ -73,6 +74,9 @@ unsigned long currentTime;
 
 // setup code, runs once
 void setup() {
+  // disable watchdog timer at startup
+  wdt_disable();
+  
   // start serial port
   Serial.begin(115200);
 
@@ -136,7 +140,7 @@ void record() {
     Serial.println(F("Connection failed"));
   }
   
-  Serial.println();  
+  Serial.println();
 }
 
 void sensorInit() {
@@ -319,6 +323,9 @@ void send(Adafruit_CC3000_Client client, String message) {
    * Send message to API as a POST request.
    */
    
+  // start watchdog timer
+  wdt_enable(WDTO_8S);
+  
   int contentLength = message.length();
   Serial.println(F("Sending request..."));
   Serial.print(F("Content-Length: "));
@@ -345,6 +352,9 @@ void send(Adafruit_CC3000_Client client, String message) {
   client.println();
 
   Serial.println(F("-------------------------------------"));
+
+  // reset watchdog timer (pat the dog)
+  wdt_reset();
   
   // read data until either the connection is closed, or the idle timeout is reached
   unsigned long lastRead = millis();
@@ -358,5 +368,8 @@ void send(Adafruit_CC3000_Client client, String message) {
   
   Serial.println();
   Serial.println(F("-------------------------------------"));
+
+  // disable watchdog timer until next execution
+  wdt_disable();
 }
 
