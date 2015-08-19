@@ -62,6 +62,9 @@ DallasTemperature sensors(&oneWire);
 // amount of time in milliseconds to wait before closing connection with no data being receieved
 #define IDLE_TIMEOUT_MS 3000
 
+// watchdog timeout
+#define WDTO WDTO_8S
+
 byte deviceCount;
 byte deviceAddress[8];
 byte deviceIndex;
@@ -114,6 +117,9 @@ void record() {
    * Intended to run in a loop.
    */
   
+  // start watchdog timer
+  wdt_enable(WDTO);
+  
   // get readings from temperature sensors
   String message = readSensors();
 
@@ -141,6 +147,9 @@ void record() {
   }
   
   Serial.println();
+
+  // disable watchdog timer until next execution
+  wdt_disable();
 }
 
 void sensorInit() {
@@ -262,6 +271,9 @@ Adafruit_CC3000_Client connect(Adafruit_CC3000 cc3000) {
   /**
    * Connection to WiFi network and then to remote server.
    */
+
+  // reset watchdog timer (pat the dog)
+  wdt_reset();
    
   // initialise module
   Serial.println(F("Initialising network connection..."));
@@ -271,13 +283,29 @@ Adafruit_CC3000_Client connect(Adafruit_CC3000 cc3000) {
     while(1);
   }
   
+  // connecting to the network can take longer than the maximum possible timeout value (8 seconds)
+  // the watchdog timer must therefore be disabled when attempting to connect
+  wdt_disable();
+  
   Serial.print(F("Attempting to connect to: ")); Serial.println(WLAN_SSID);
   if (!cc3000.connectToAP(WLAN_SSID, WLAN_PASS, WLAN_SECURITY)) {
     Serial.println(F("Network connection failed"));
+
+    // wait for a few minutes if unable to connect to network
+    delay(1000L * 60L * 5L);
+    
+    // start the watchdog timer again, which will trigger a reset
+    wdt_enable(WDTO);
     while(1);
   }
+
+  // start the watchdog timer again after connecting to the network
+  wdt_enable(WDTO);
    
   Serial.println(F("Connected to network"));
+
+  // reset watchdog timer (pat the dog)
+  wdt_reset();
   
   // block until DHCP has been completed
   Serial.println(F("Starting DHCP..."));
@@ -287,6 +315,9 @@ Adafruit_CC3000_Client connect(Adafruit_CC3000 cc3000) {
     delay(100);
   }
   Serial.println(F("DHCP complete"));
+
+  // reset watchdog timer (pat the dog)
+  wdt_reset();
 
   if (PERFORM_DNS_LOOKUP) {
     Serial.println(F("Performing DNS lookup to get server IP address..."));
@@ -309,13 +340,21 @@ Adafruit_CC3000_Client connect(Adafruit_CC3000 cc3000) {
     Serial.println(F("Not performing DNS lookup; using fixed server IP address"));
     ip = cc3000.IP2U32(API_IP1, API_IP2, API_IP3, API_IP4);
   }
-    
+  
+  // reset watchdog timer (pat the dog)
+  wdt_reset();
+  
   Serial.print(F("Connecting to IP: "));
   cc3000.printIPdotsRev(ip);
   Serial.println();
   
   // Use HTTP/1.1 to keep server from disconnecting before all data has been read
-  return cc3000.connectTCP(ip, API_PORT);
+  Adafruit_CC3000_Client client = cc3000.connectTCP(ip, API_PORT);
+
+  // reset watchdog timer (pat the dog)
+  wdt_reset();
+
+  return client;
 }
 
 void send(Adafruit_CC3000_Client client, String message) {
@@ -323,8 +362,8 @@ void send(Adafruit_CC3000_Client client, String message) {
    * Send message to API as a POST request.
    */
    
-  // start watchdog timer
-  wdt_enable(WDTO_8S);
+  // reset watchdog timer (pat the dog)
+  wdt_reset();
   
   int contentLength = message.length();
   Serial.println(F("Sending request..."));
@@ -369,7 +408,7 @@ void send(Adafruit_CC3000_Client client, String message) {
   Serial.println();
   Serial.println(F("-------------------------------------"));
 
-  // disable watchdog timer until next execution
-  wdt_disable();
+  // reset watchdog timer (pat the dog)
+  wdt_reset();
 }
 
